@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Users, QrCode, Calendar, BarChart3, FileSpreadsheet, Settings, LogOut, FileText } from "lucide-react";
 import { AttendanceDashboard } from "@/components/attendance-dashboard";
-import { getAllAttendanceRecords, getAllStudents, getAllEvents, getActiveEvent } from "@/lib/database";
+import { getAllAttendanceRecords, getAllStudents, getAllEvents, getActiveEvents } from "@/lib/database";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
 import { toast } from "sonner";
@@ -16,7 +16,7 @@ export default function HomePage() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [students, setStudents] = useState([]);
   const [events, setEvents] = useState([]);
-  const [activeEvent, setActiveEvent] = useState(null);
+  const [activeEvents, setActiveEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string>("");
 
@@ -47,16 +47,16 @@ export default function HomePage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [fetchedAttendance, fetchedStudents, fetchedEvents, fetchedActiveEvent] = await Promise.all([
+        const [fetchedAttendance, fetchedStudents, fetchedEvents, fetchedActiveEvents] = await Promise.all([
           getAllAttendanceRecords(token),
           getAllStudents(token),
           getAllEvents(token),
-          getActiveEvent(token),
+          getActiveEvents(token),
         ]);
         setAttendanceRecords(fetchedAttendance);
         setStudents(fetchedStudents);
         setEvents(fetchedEvents);
-        setActiveEvent(fetchedActiveEvent);
+        setActiveEvents(fetchedActiveEvents);
       } catch (error: any) {
         console.error("Error fetching data:", error);
         toast.error("Ошибка при загрузке данных: " + error.message);
@@ -80,9 +80,11 @@ export default function HomePage() {
     (record) => record.timestamp.toDateString() === new Date().toDateString()
   );
 
+  // Calculate unique students who attended today for attendance rate
+  const uniqueTodayAttendees = [...new Set(todayAttendance.map(record => record.student_id))];
   const attendanceRate =
-    students.length > 0 && events.length > 0
-      ? ((attendanceRecords.length / (students.length * events.length)) * 100).toFixed(2)
+    students.length > 0
+      ? ((uniqueTodayAttendees.length / students.length) * 100).toFixed(2)
       : 0;
 
   return (
@@ -121,10 +123,10 @@ export default function HomePage() {
 
           <Card className="bg-white border-0 shadow-sm">
             <CardHeader className="pb-2">
-              <CardDescription className="text-gray-600">Активное мероприятие</CardDescription>
+              <CardDescription className="text-gray-600">Активные мероприятия</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900">{activeEvent ? 1 : 0}</div>
+              <div className="text-3xl font-bold text-gray-900">{activeEvents.length}</div>
             </CardContent>
           </Card>
         </div>
