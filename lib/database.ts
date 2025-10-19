@@ -140,22 +140,17 @@ export async function getMyChildren(token: string): Promise<Student[]> {
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
-    console.error("Error fetching children:", {
-      status: res.status,
-      statusText: res.statusText,
-      error: errorData.error,
-    });
     throw new Error(`Error fetching children: ${res.status} ${res.statusText} - ${errorData.error || "Unknown error"}`);
   }
-  const childrenData = await res.json();
-  return childrenData.map((child: any) => ({
-    id: child._id,
-    name: child.name,
-    group: child.group || "",
-    specialty: child.specialty || "",
-    qr_code: child.qr_code,
-    school_id: child.school_id,
-    createdAt: new Date(child.created_at),
+  const students = await res.json();
+  return students.map((student: any) => ({
+    id: student._id,
+    name: student.name,
+    group: student.group,
+    specialty: student.specialty,
+    qr_code: student.qr_code,
+    school_id: student.school_id,
+    createdAt: new Date(student.created_at),
   }));
 }
 
@@ -330,13 +325,9 @@ export async function checkAttendanceExists(studentId: string, eventName: string
   }
 }
 
-export async function getAttendanceByEvent(eventName: string, token: string, schoolId?: string): Promise<AttendanceRecord[]> {
-  const encodedEventName = encodeURIComponent(eventName.trim());
-  let url = `${API_URL}/attendance/event/${encodedEventName}`;
-  if (schoolId) {
-    url += `?school_id=${schoolId}`;
-  }
-  const res = await fetch(url, {
+export async function getAttendanceByEvent(eventName: string, token: string): Promise<AttendanceRecord[]> {
+  const encodedEventName = encodeURIComponent(eventName);
+  const res = await fetch(`${API_URL}/attendance/event/${encodedEventName}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -344,17 +335,16 @@ export async function getAttendanceByEvent(eventName: string, token: string, sch
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
-    console.error("Error fetching attendance by event:", errorData);
-    throw new Error(`Error fetching attendance by event: ${res.status} ${res.statusText} - ${errorData.error || "Unknown error"}`);
+    throw new Error(`Error fetching attendance: ${res.status} ${res.statusText} - ${errorData.error || "Unknown error"}`);
   }
   const records = await res.json();
   return records.map((record: any) => ({
     id: record._id,
     student_id: record.student_id,
+    studentName: record.studentName,
     event_name: record.event_name,
     timestamp: new Date(record.timestamp),
     scanned_by: record.scanned_by,
-    studentName: record.studentName,
   }));
 }
 
@@ -960,8 +950,8 @@ export async function getAttendanceBySchoolAndPeriod(schoolId: string, period: '
     id: record._id,
     student_id: record.student_id,
     studentName: record.studentName,
-    group: record.group, // ДОБАВЛЕНО
-    specialty: record.specialty, // ДОБАВЛЕНО
+    group: record.group,
+    specialty: record.specialty,
     event_name: record.event_name,
     timestamp: new Date(record.timestamp),
     scanned_by: record.scanned_by,
@@ -997,4 +987,56 @@ export async function updateUser(id: string, data: { email?: string; password?: 
     console.error("Error updating user:", error);
     throw error;
   }
+}
+
+export async function getEventsByTeacher(teacherId: string, token: string): Promise<Event[]> {
+  console.log("Fetching events for teacher ID:", teacherId, "with token:", token.slice(0, 10) + "...");
+  const res = await fetch(`${API_URL}/events/teacher/${teacherId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+    console.error("Error fetching events for teacher:", errorData);
+    throw new Error(`Error fetching events: ${res.status} ${res.statusText} - ${errorData.error || "Unknown error"}`);
+  }
+  const events = await res.json();
+  return events.map((event: any) => ({
+    id: event._id,
+    name: event.name,
+    schedule: event.schedule,
+    description: event.description,
+    is_active: event.is_active,
+    school_id: event.school_id,
+    teacher_id: event.teacher_id,
+  }));
+}
+
+export async function getTeachers(token: string): Promise<User[]> {
+  console.log("Fetching teachers with token:", token.slice(0, 10) + "...");
+  const res = await fetch(`${API_URL}/users?role=teacher`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+    console.error("Error fetching teachers:", errorData);
+    throw new Error(`Error fetching teachers: ${res.status} ${res.statusText} - ${errorData.error || "Unknown error"}`);
+  }
+  const users = await res.json();
+  return users.map((user: any) => ({
+    id: user._id,
+    email: user.email,
+    role: user.role,
+    school_id: user.school_id?._id,
+    school: user.school_id ? { id: user.school_id._id, name: user.school_id.name } : undefined,
+    city: user.city,
+    createdAt: new Date(user.created_at),
+    children: user.children ? user.children.map((child: any) => child._id) : [],
+    name: user.name,
+  }));
 }

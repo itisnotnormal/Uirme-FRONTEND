@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Calendar, Users, Trash2, LogOut } from "lucide-react";
-import { getAllEvents, getAttendanceByEvent, addEvent, toggleEventActive, deleteAttendanceRecord, deleteAllAttendanceByEvent } from "@/lib/database";
+import { getAllEvents, getAttendanceByEvent, addEvent, toggleEventActive, deleteAttendanceRecord, deleteAllAttendanceByEvent, getTeachers } from "@/lib/database";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import type { Event, AttendanceRecord } from "@/lib/types";
+import type { Event, AttendanceRecord, User } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -33,6 +33,7 @@ const eventSchema = z.object({
     })
   ).min(1, "Добавьте хотя бы одно расписание"),
   description: z.string().optional(),
+  teacher_id: z.string().min(1, "Выберите преподавателя"),
 });
 
 type EventFormData = z.infer<typeof eventSchema>;
@@ -68,6 +69,7 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teachers, setTeachers] = useState<User[]>([]);
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -75,6 +77,7 @@ export default function EventsPage() {
       name: "",
       schedule: [{ dayOfWeek: "Monday", startTime: "09:00", endTime: "10:00" }],
       description: "",
+      teacher_id: "",
     },
   });
 
@@ -114,7 +117,23 @@ export default function EventsPage() {
         setIsLoading(false);
       }
     };
+
+    const fetchTeachers = async () => {
+      try {
+        const fetchedTeachers = await getTeachers(token);
+        setTeachers(fetchedTeachers);
+      } catch (error: any) {
+        console.error("Error fetching teachers:", error);
+        toast({
+          title: "Ошибка",
+          description: "Не удалось загрузить список преподавателей",
+          variant: "destructive",
+        });
+      }
+    };
+
     fetchEventsAndAttendance();
+    fetchTeachers();
   }, [router]);
 
   const handleCreateEvent = async (data: EventFormData) => {
@@ -131,6 +150,7 @@ export default function EventsPage() {
         schedule: data.schedule,
         description: data.description || "",
         is_active: false,
+        teacher_id: data.teacher_id,
       };
       const addedEvent = await addEvent(eventToAdd, token);
       if (addedEvent) {
@@ -146,6 +166,7 @@ export default function EventsPage() {
           name: "",
           schedule: [{ dayOfWeek: "Monday", startTime: "09:00", endTime: "10:00" }],
           description: "",
+          teacher_id: "",
         });
       } else {
         throw new Error("Failed to add event");
@@ -275,6 +296,11 @@ export default function EventsPage() {
           </div>
           <div className="flex gap-2">
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" /> Создать мероприятие
+                </Button>
+              </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Создать новое мероприятие</DialogTitle>
@@ -284,6 +310,24 @@ export default function EventsPage() {
                     <Label htmlFor="name">Название</Label>
                     <Input id="name" {...form.register("name")} />
                     {form.formState.errors.name && <p className="text-red-500 text-sm">{form.formState.errors.name.message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="teacher_id">Преподаватель</Label>
+                    <Select
+                      onValueChange={(value) => form.setValue("teacher_id", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите преподавателя" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teachers.map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id}>
+                            {teacher.name || teacher.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.formState.errors.teacher_id && <p className="text-red-500 text-sm">{form.formState.errors.teacher_id.message}</p>}
                   </div>
                   <div>
                     <Label>Расписание</Label>

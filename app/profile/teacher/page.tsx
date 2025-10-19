@@ -8,7 +8,7 @@ import { LogOut, User, Calendar } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getCurrentUser, getEventsBySchool, getAttendanceByEvent, getSchoolById } from "@/lib/database";
+import { getCurrentUser, getEventsByTeacher, getAttendanceByEvent, getSchoolById } from "@/lib/database";
 import type { Event, AttendanceRecord, School, TeacherProfile } from "@/lib/types";
 
 export default function TeacherProfilePage() {
@@ -72,9 +72,9 @@ export default function TeacherProfilePage() {
         console.warn("No school_id found for user");
       }
 
-      // Fetch events where the teacher is assigned
-      if (user.school_id) {
-        const events = await getEventsBySchool(user.school_id, t);
+      // Fetch events assigned to the teacher
+      if (user.id) {
+        const events = await getEventsByTeacher(user.id, t);
         setEvents(events);
 
         // Fetch attendance for each event
@@ -170,7 +170,6 @@ export default function TeacherProfilePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Название</TableHead>
-                  <TableHead>Дата</TableHead>
                   <TableHead>Описание</TableHead>
                   <TableHead>Статус</TableHead>
                   <TableHead>Посещаемость</TableHead>
