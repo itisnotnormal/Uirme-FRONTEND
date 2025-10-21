@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { toast } from "react-toastify";
 import type { Event, AttendanceRecord, User } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -184,63 +184,67 @@ export default function EventsPage() {
   };
 
   const handleToggleEventActive = async (eventId: string, currentActive: boolean, eventName: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    console.log(`Attempting to toggle event ${eventId} to ${!currentActive}`);
-    if (!eventId || eventId === "undefined") {
-      console.error("Invalid eventId:", eventId);
-      toast({
-        title: "Ошибка",
-        description: "Недействительный ID мероприятия",
-        variant: "destructive",
+  const token = localStorage.getItem("token");
+  if (!token) {
+    router.push("/login");
+    return;
+  }
+  if (!eventId || eventId === "undefined") {
+    console.error("Invalid eventId:", eventId);
+    toast({
+      title: "Ошибка",
+      description: "Недействительный ID мероприятия",
+      variant: "destructive",
+    });
+    return;
+  }
+  try {
+    if (currentActive) {
+      // Деактивация: удаляем все записи посещаемости
+      const success = await deleteAllAttendanceByEvent(eventName, token);
+      if (!success) {
+        throw new Error("Не удалось удалить записи посещаемости");
+      }
+      setAttendanceMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(eventName, []);
+        return newMap;
       });
-      return;
-    }
-    try {
-      if (currentActive) {
-        // Deactivating event: delete all attendance records
-        const success = await deleteAllAttendanceByEvent(eventName, token);
-        if (success) {
-          setAttendanceMap((prev) => {
-            const newMap = new Map(prev);
-            newMap.set(eventName, []);
-            return newMap;
-          });
-          toast({
-            title: "Успех",
-            description: "Все записи посещаемости удалены",
-          });
-        } else {
-          throw new Error("Failed to delete attendance records");
-        }
-      }
-      const success = await toggleEventActive(eventId, !currentActive, token);
-      console.log("toggleEventActive result:", success);
-      if (success) {
-        setEvents((prev) =>
-          prev.map((event) =>
-            event.id === eventId ? { ...event, is_active: !currentActive } : event
-          )
-        );
-        toast({
-          title: "Успех",
-          description: `Мероприятие ${currentActive ? "деактивировано" : "активировано"}`,
-        });
-      } else {
-        throw new Error("Failed to toggle event active status");
-      }
-    } catch (error: any) {
-      console.error("Error in handleToggleEventActive:", error);
       toast({
-        title: "Ошибка",
-        description: `Произошла ошибка при ${currentActive ? "деактивации" : "активации"} мероприятия: ${error.message || "Неизвестная ошибка"}`,
-        variant: "destructive",
+        title: "Успех",
+        description: "Все записи посещаемости удалены",
       });
     }
-  };
+    // Переключаем статус активности
+    const success = await toggleEventActive(eventId, !currentActive, token);
+    if (success) {
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === eventId ? { ...event, is_active: !currentActive } : event
+        )
+      );
+      toast({
+        title: "Успех",
+        description: `Мероприятие ${currentActive ? "деактивировано" : "активировано"}`,
+      });
+    } else {
+      throw new Error("Не удалось изменить статус мероприятия");
+    }
+  } catch (error: any) {
+    console.error("Error in handleToggleEventActive:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      stack: error.stack,
+    });
+    const errorMessage = error.response?.data?.error || error.message || "Неизвестная ошибка";
+    toast({
+      title: "Ошибка",
+      description: errorMessage,
+      variant: "destructive",
+    });
+  }
+};
 
   const handleDeleteAttendance = async (recordId: string, eventName: string) => {
     const token = localStorage.getItem("token");

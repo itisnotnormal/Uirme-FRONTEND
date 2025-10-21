@@ -917,6 +917,45 @@ function EventsTab({ schoolId }: { schoolId: string }) {
       return;
     }
     try {
+      if (!currentActive) { // Пытаемся активировать - проверяем на пересечения
+        // Найти событие, которое активируем
+        const eventToActivate = events.find((e) => e.id === eventId);
+        if (!eventToActivate) {
+          toast.error("Событие не найдено");
+          return;
+        }
+        const teacherId = eventToActivate.teacher_id;
+        // Найти другие активные события этого преподавателя
+        const otherActiveEvents = events.filter(
+          (e) => e.teacher_id === teacherId && e.is_active && e.id !== eventId
+        );
+        let hasOverlap = false;
+        // Проверяем пересечения расписаний
+        for (const sched of eventToActivate.schedule) {
+          for (const activeEvent of otherActiveEvents) {
+            for (const activeSched of activeEvent.schedule) {
+              if (sched.dayOfWeek === activeSched.dayOfWeek) {
+                // Проверка пересечения времени (строки "HH:mm" сравниваются лексически)
+                const start1 = sched.startTime;
+                const end1 = sched.endTime;
+                const start2 = activeSched.startTime;
+                const end2 = activeSched.endTime;
+                if (start1 < end2 && start2 < end1) {
+                  hasOverlap = true;
+                  break;
+                }
+              }
+            }
+            if (hasOverlap) break;
+          }
+          if (hasOverlap) break;
+        }
+        if (hasOverlap) {
+          toast.error("Нельзя активировать два мероприятия в одно и то же время для одного преподавателя");
+          return;
+        }
+      }
+
       if (currentActive) {
         // Deactivating event: delete all attendance records
         const success = await deleteAllAttendanceByEvent(eventName, token);
